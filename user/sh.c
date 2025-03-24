@@ -1,8 +1,15 @@
 // Shell.
 
+
+// #include <string.h>
+#include <stdbool.h>
 #include "kernel/types.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
+
+
+#define BLUE "\033[34m"
+#define RESET "\033[0m"
 
 // Parsed command representation
 #define EXEC  1
@@ -76,6 +83,34 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(1);
+    else if(strcmp(ecmd->argv[0] , "!") == 0){
+      if (ecmd->argv[1] == 0)
+        exit(0);
+      else if(strlen(ecmd->argv[1]) > 512){
+        fprintf(2,"Message Too Long");
+        exit(1);
+      }
+    
+      else{
+        int k = 0;
+        while(ecmd->argv[1][k + 1] != '\0'){
+          if(ecmd->argv[1][k] == 'o' && ecmd->argv[1][k + 1] == 's'){
+            write(1,BLUE,strlen(BLUE));
+            write(1,"os",2);
+            write(1,RESET,strlen(RESET));
+            k += 2;
+          }
+          else{
+            write(1,&ecmd->argv[1][k],1);
+            k += 1;
+          }
+        }
+        write(1,&ecmd->argv[1][k],1);
+        write(1,"\n",1);
+      } 
+
+      exit(0);
+    }
     exec(ecmd->argv[0], ecmd->argv);
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
