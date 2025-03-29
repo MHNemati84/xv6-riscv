@@ -169,7 +169,7 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
-  write(2, "\033[1;33m$Hadi-Mohammad \033[0m", 25);
+  write(2, "\033[1;33m$Hadi-Mohammad \033[0m", 26);
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
