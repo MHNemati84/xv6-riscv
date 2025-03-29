@@ -44,3 +44,34 @@ You will need a RISC-V "newlib" tool chain from
 https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for
 riscv64-softmmu.  Once they are installed, and in your shell
 search path, you can run "make qemu".
+
+---
+
+# Building the Project
+
+many system using the AMD64 and the ARM64 is not available 
+
+for that matter you shall enable the ARM64 to run on AMD64
+
+So run this program 
+
+```
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+```
+
+and then run 
+
+```
+docker run -it --rm -v ~/Documents/Code/xv6/xv6-riscv wtakuo/xv6-env
+```
+
+The access to the file are also too naive, give a better access to the files 
+
+go to the project and run
+```
+chmod -R 777 .
+```
+
+### Exiting 
+
+Do Ctrl + A followed by an X
