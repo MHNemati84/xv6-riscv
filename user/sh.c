@@ -2,7 +2,8 @@
 
 
 // #include <string.h>
-#include <stdbool.h>
+#include <stdbool.h> 
+#include <stddef.h>
 #include "kernel/types.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
@@ -92,22 +93,31 @@ runcmd(struct cmd *cmd)
       }
     
       else{
-        int k = 0;
-        while(ecmd->argv[1][k + 1] != '\0'){
-          if(ecmd->argv[1][k] == 'o' && ecmd->argv[1][k + 1] == 's'){
-            write(1,BLUE,strlen(BLUE));
-            write(1,"os",2);
-            write(1,RESET,strlen(RESET));
-            k += 2;
+        
+        int j = 1;
+        while(ecmd->argv[j] != NULL){
+          int k = 0;
+          while(ecmd->argv[j][k] != '\0' && ecmd->argv[j][k + 1] != '\0'){
+            if(ecmd->argv[j][k] == 'o' && ecmd->argv[j][k + 1] == 's'){
+              write(1,BLUE,strlen(BLUE));
+              write(1,"os",2);
+              write(1,RESET,strlen(RESET));
+              k += 2;
+
+            }
+            else{
+              write(1,&ecmd->argv[j][k],1);
+              k += 1;
+            }
           }
-          else{
-            write(1,&ecmd->argv[1][k],1);
-            k += 1;
-          }
+          if(ecmd->argv[j][k] != '\0')
+            write(1,&ecmd->argv[j][k],1);
+          write(1, " " ,1);
+          j += 1;
         }
-        write(1,&ecmd->argv[1][k],1);
         write(1,"\n",1);
-      } 
+        
+    }
 
       exit(0);
     }
