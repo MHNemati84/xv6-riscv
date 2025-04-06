@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "system_logger.h"
 
 uint64
 sys_exit(void)
@@ -91,3 +92,12 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_trigger(void)
+{
+  logger_init();
+  logger_message(INFO,"This is a log to test a new xv6 system call");
+  return 0;
+}
+
