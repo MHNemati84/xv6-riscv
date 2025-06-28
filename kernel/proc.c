@@ -693,3 +693,127 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+
+// Creates a new thread 
+// Finds a THREAD_UNUSED slot in p->threads
+// Allocates a TID and trapframe to the thread
+// sets up the necessary registers
+
+struct thread *
+allocthread(uint64 start_thread, uint64 stack_address, uint64 arg){
+  struct proc *p = myproc();
+  if(!initthread(p))
+    return 0;
+  
+  for(struct thread *t = p->threads; t < p->threads + NTHREAD; t++){
+    if(t->state == THREAD_UNUSED) {
+      t->id = allocpid();
+      if((t->trapframe = (struct trapframe *)kalloc()) == 0) {
+        freethread(t);
+        break;
+      }
+
+      t->state = THREAD_RUNNABLE;
+      *t->trapframe = *p->trapframe;
+      t->trapframe->sp = stack_address;              
+      t->trapframe->epc = (uint64) start_thread;        // execution program counter is set to thread function address
+      t->trapframe->a0 = arg;                           // register to hold the thread function argument
+      t->trapframe->ra = -1;                            // this will cause the thread to exit after thread function finishes
+
+      return t;
+      
+    }
+
+  }
+  return 0;
+}
+
+// used to deallocate the resources of a thread
+// It deallocates the kernel memory allocated to thread trapframe
+// As well as resesting the parameters associated with the thread
+void 
+freethread(struct thread *t){
+  t->state = THREAD_UNUSED;
+  if(t->trapframe)
+    kfree((void *)t->trapframe);
+  t->trapframe = 0;
+  t->id = 0;
+  t->join = 0;
+  t->sleep_n = 0;
+  t->sleep_tick0 = 0;
+}
+
+// used to terminate a thread by freeing up its resources
+// as well as making all its joined threads runnable
+void
+exitthread() {
+  struct proc *p = myproc();
+  uint id = p->current_thread->id;
+
+  for(struct thread *t = p->threads; t < p->threads + NTHREAD; t++) {
+    if(t->state == THREAD_JOINED && t->join == id){
+      t->state = THREAD_RUNNABLE;
+      t->join = 0;
+    }
+  }
+
+  freethread(p->current_thread);
+  if(!threadsched(p))
+    setkilled(p);
+}
+
+
+// Joining a thread so that it waits for the termination of another thread
+// Also checking whether this addition will cause the join chain to be circular(deadlock)
+int
+jointhread(uint join_id) {
+  struct proc *p = myproc();
+  struct thread *t = p->current_thread;
+  if(!t)
+    return -3;
+
+  int found = 0;
+  uint current_id = join_id;
+  while(current_id != 0){
+    if(current_id == t->id)         // thread is waiting for itself -> deadlock
+      return -1;
+
+    uint target_id = current_id;
+    current_id = 0;                 // to avoid infinite loop if target id is not found in the for loop
+    for(struct thread *th = p->threads;th < p->threads + NTHREAD; th++){
+      if(th->id == target_id){
+        found = 1;
+        current_id = th->join;      // traversing the join chain to check for deadlock
+        break;
+      }
+    }
+  }
+
+  if(!found)
+    return -2;
+
+  t->join = join_id;
+  t->state = THREAD_JOINED;
+  yield();                          // switch the CPU context to scheduler to pick another thread
+
+  return 0;
+
+}
+
+
+// Used to put current thread to sleep for a fixed duration
+void
+sleepthread(int n, uint ticks0) {
+  struct thread *t = myproc()->current_thread;
+  t->sleep_n = n;                 // duration of the sleep
+  t->sleep_tick0 = ticks0;        // time thread is put to sleep
+  t->state = THREAD_SLEEPING;
+  thread_sched(myproc());
+}
+
+
+
+  
+
