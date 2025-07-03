@@ -789,6 +789,30 @@ void procdump(void)
   }
 }
 
+struct thread *
+initthread(struct proc *p)
+{
+  if (!p->current_thread)
+  {
+    for (int i = 0; i < NTHREAD; ++i)
+    {
+      p->threads[i].trapframe = 0;
+      freethread(&p->threads[i]);
+    }
+    // Initialize main thread
+    struct thread *t = &p->threads[0];
+    t->id = p->pid;
+    if ((t->trapframe = (struct trapframe *)kalloc()) == 0) // if the kalloc fail we clean the partial memory
+    {
+      freethread(t);
+      return 0;
+    }
+    t->state = THREAD_RUNNING;
+    p->current_thread = t;
+  }
+  return p->current_thread;
+}
+
 // Creates a new thread
 // Finds a THREAD_UNUSED slot in p->threads
 // Allocates a TID and trapframe to the thread
@@ -844,7 +868,7 @@ void exitthread()
   }
 
   freethread(p->current_thread);
-  if (!threadsched(p))
+  if (!thread_schd(p))
     setkilled(p);
 }
 
@@ -894,29 +918,6 @@ void sleepthread(int n, uint ticks0)
   t->sleep_n = n;          // duration of the sleep
   t->sleep_tick0 = ticks0; // time thread is put to sleep
   t->state = THREAD_SLEEPING;
-  thread_sched(myproc());
+  thread_schd(myproc());
 }
 
-struct thread *
-initthread(struct proc *p)
-{
-  if (!p->current_thread)
-  {
-    for (int i = 0; i < NTHREAD; ++i)
-    {
-      p->threads[i].trapframe = 0;
-      freethread(&p->threads[i]);
-    }
-    // Initialize main thread
-    struct thread *t = &p->threads[0];
-    t->id = p->pid;
-    if ((t->trapframe = (struct trapframe *)kalloc()) == 0) // if the kalloc fail we clean the partial memory
-    {
-      freethread(t);
-      return 0;
-    }
-    t->state = THREAD_RUNNING;
-    p->current_thread = t;
-  }
-  return p->current_thread;
-}
