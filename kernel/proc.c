@@ -55,6 +55,7 @@ void procinit(void)
     initlock(&p->lock, "proc");
     p->state = UNUSED;
     p->kstack = KSTACK((int)(p - proc));
+    p->current_thread = 0; //Initialize current_thread to indicate no active thread    p>current
   }
 }
 
@@ -153,6 +154,22 @@ found:
   return p;
 }
 
+
+// used to deallocate the resources of a thread
+// It deallocates the kernel memory allocated to thread trapframe
+// As well as resesting the parameters associated with the thread
+void freethread(struct thread *t)
+{
+  t->state = THREAD_UNUSED;
+  if (t->trapframe)       // This mean if a trapframe allocated (A memory has beed reserved)
+    kfree((void *)t->trapframe);
+  t->trapframe = 0;
+  t->id = 0;
+  t->join = 0;
+  t->sleep_n = 0;
+  t->sleep_tick0 = 0;
+}
+
 // free a proc structure and the data hanging from it,
 // including user pages.
 // p->lock must be held.
@@ -173,6 +190,12 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+
+  // Thread Clean up
+  p->current_thread = 0; // Reset current_thread to null
+  for (int i = 0; i < NTHREAD; ++i) {
+    freethread(&p->threads[i]); // Free all threads associated with the process
+  }
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -448,6 +471,57 @@ int wait(uint64 addr)
   }
 }
 
+int thread_schd(struct proc *p)
+// This is a thread scheduler in a single process 
+{
+  if (!p->current_thread) // check if we have any sort of thread existed here 
+  {
+    return 1;
+  }
+  if (p->current_thread->state == THREAD_RUNNING)
+  {
+    p->current_thread->state = THREAD_RUNNABLE;
+  } // Stop the running thread 
+  acquire(&tickslock);
+  uint ticks0 = ticks; // we give the time of the system 
+  release(&tickslock);
+  struct thread *next = 0;
+  struct thread *t = p->current_thread + 1;
+  for (int i = 0; i < NTHREAD; i++, t++) // here we want to choose the next thread in circular order
+  {
+    if (t >= p->threads + NTHREAD)
+    {
+      t = p->threads; // select the next thread after the current one 
+    }
+    if (t->state == THREAD_RUNNABLE)
+    {
+      next = t;
+      break;
+    }
+    else if (t->state == THREAD_SLEEPING && ticks0 - t->sleep_tick0 >= t->sleep_n)
+    {
+      next = t; // we check if the thread was sleep for too long 
+      break;
+    }
+  }
+  if (next == 0)
+  {
+    return 0;
+  }
+  else if (p->current_thread != next)
+  { // we give the next thread a valid trapframe
+    next->state = THREAD_RUNNING;
+    struct thread *t = p->current_thread;
+    p->current_thread = next;
+    if (t->trapframe)
+    {
+      *t->trapframe = *p->trapframe;
+    }
+    *p->trapframe = *next->trapframe;
+  }
+  return 1;
+}
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -474,17 +548,19 @@ void scheduler(void)
       acquire(&p->lock);
       if (p->state == RUNNABLE)
       {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+        if (thread_schd(p)) {
+          // Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+          found = 1;
+        }
       }
       release(&p->lock);
     }
@@ -749,20 +825,7 @@ allocthread(uint64 start_thread, uint64 stack_address, uint64 arg)
   return 0;
 }
 
-// used to deallocate the resources of a thread
-// It deallocates the kernel memory allocated to thread trapframe
-// As well as resesting the parameters associated with the thread
-void freethread(struct thread *t)
-{
-  t->state = THREAD_UNUSED;
-  if (t->trapframe)       // This mean if a trapframe allocated (A memory has beed reserved)
-    kfree((void *)t->trapframe);
-  t->trapframe = 0;
-  t->id = 0;
-  t->join = 0;
-  t->sleep_n = 0;
-  t->sleep_tick0 = 0;
-}
+
 
 // used to terminate a thread by freeing up its resources
 // as well as making all its joined threads runnable
@@ -856,55 +919,4 @@ initthread(struct proc *p)
     p->current_thread = t;
   }
   return p->current_thread;
-}
-
-int thread_schd(struct proc *p)
-// This is a thread scheduler in a single process 
-{
-  if (!p->current_thread) // check if we have any sort of thread existed here 
-  {
-    return 1;
-  }
-  if (p->current_thread->state == THREAD_RUNNING)
-  {
-    p->current_thread->state = THREAD_RUNNABLE;
-  } // Stop the running thread 
-  acquire(&tickslock);
-  uint ticks0 = ticks; // we give the time of the system 
-  release(&tickslock);
-  struct thread *next = 0;
-  struct thread *t = p->current_thread + 1;
-  for (int i = 0; i < NTHREAD; i++, t++) // here we want to choose the next thread in circular order
-  {
-    if (t >= p->threads + NTHREAD)
-    {
-      t = p->threads; // select the next thread after the current one 
-    }
-    if (t->state == THREAD_RUNNABLE)
-    {
-      next = t;
-      break;
-    }
-    else if (t->state == THREAD_SLEEPING && ticks0 - t->sleep_tick0 >= t->sleep_n)
-    {
-      next = t; // we check if the thread was sleep for too long 
-      break;
-    }
-  }
-  if (next == 0)
-  {
-    return 0;
-  }
-  else if (p->current_thread != next)
-  { // we give the next thread a valid trapframe
-    next->state = THREAD_RUNNING;
-    struct thread *t = p->current_thread;
-    p->current_thread = next;
-    if (t->trapframe)
-    {
-      *t->trapframe = *p->trapframe;
-    }
-    *p->trapframe = *next->trapframe;
-  }
-  return 1;
 }
