@@ -159,6 +159,10 @@ syscall(void)
   if(oldt != newt){
     if(!oldt)
       oldt = &p->threads[0];
+    oldt->trapframe->a0 = ret;
+  }
+
+  if (oldt == newt || p->current_thread == oldt ) {
     p->trapframe->a0 = ret;
   }
 

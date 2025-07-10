@@ -114,7 +114,8 @@ int             jointhread(uint id);
 void            freethread(struct thread *t);
 void            exitthread();
 void            sleepthread(int n, uint ticks0);
-
+struct thread  *initthread(struct proc *p);
+int             thread_schd(struct proc *p);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

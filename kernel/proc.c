@@ -166,8 +166,6 @@ void freethread(struct thread *t)
   t->trapframe = 0;
   t->id = 0;
   t->join = 0;
-  t->sleep_n = 0;
-  t->sleep_tick0 = 0;
 }
 
 // free a proc structure and the data hanging from it,
@@ -276,7 +274,7 @@ void userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
-
+  
   release(&p->lock);
 }
 
@@ -474,10 +472,12 @@ int wait(uint64 addr)
 int thread_schd(struct proc *p)
 // This is a thread scheduler in a single process 
 {
+
   if (!p->current_thread) // check if we have any sort of thread existed here 
   {
     return 1;
   }
+
   if (p->current_thread->state == THREAD_RUNNING)
   {
     p->current_thread->state = THREAD_RUNNABLE;
@@ -489,10 +489,13 @@ int thread_schd(struct proc *p)
   struct thread *t = p->current_thread + 1;
   for (int i = 0; i < NTHREAD; i++, t++) // here we want to choose the next thread in circular order
   {
+
+    
     if (t >= p->threads + NTHREAD)
     {
       t = p->threads; // select the next thread after the current one 
     }
+    
     if (t->state == THREAD_RUNNABLE)
     {
       next = t;
@@ -519,6 +522,7 @@ int thread_schd(struct proc *p)
     }
     *p->trapframe = *next->trapframe;
   }
+  
   return 1;
 }
 
@@ -839,9 +843,9 @@ allocthread(uint64 start_thread, uint64 stack_address, uint64 arg)
       t->state = THREAD_RUNNABLE;
       *t->trapframe = *p->trapframe;
       t->trapframe->sp = stack_address;
-      t->trapframe->epc = (uint64)start_thread; // execution program counter is set to thread function address
       t->trapframe->a0 = arg;                   // register to hold the thread function argument
       t->trapframe->ra = -1;                    // this will cause the thread to exit after thread function finishes
+      t->trapframe->epc = (uint64)start_thread; // execution program counter is set to thread function address
 
       return t;
     }
@@ -868,8 +872,9 @@ void exitthread()
   }
 
   freethread(p->current_thread);
-  if (!thread_schd(p))
+  if (!thread_schd(p)) {
     setkilled(p);
+  }
 }
 
 // Joining a thread so that it waits for the termination of another thread
@@ -890,12 +895,12 @@ int jointhread(uint join_id)
 
     uint target_id = current_id;
     current_id = 0; // to avoid infinite loop if target id is not found in the for loop
-    for (struct thread *th = p->threads; th < p->threads + NTHREAD; th++)
+    for (int i = 0; i < NTHREAD; i++)
     {
-      if (th->id == target_id)
+      if (p->threads[i].id == target_id)
       {
         found = 1;
-        current_id = th->join; // traversing the join chain to check for deadlock
+        current_id = p->threads[i].join; // traversing the join chain to check for deadlock
         break;
       }
     }
