@@ -24,6 +24,10 @@ int sleep(int);
 int uptime(void);
 int trigger(void);
 
+// system calls for thread creation and thread join
+int thread(void *start_address, int *stack_address, void *arg);
+int jointhread(int id);
+
 
 // ulib.c
 int stat(const char*, struct stat*);
